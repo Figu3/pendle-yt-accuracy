@@ -4,6 +4,15 @@ import { useState, useEffect } from 'react';
 import type { DashboardSummary, MarketErrorSummary } from '@/types/pendle';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+const CHAINS = [
+  { id: 1, name: 'Ethereum' },
+  { id: 42161, name: 'Arbitrum' },
+  { id: 56, name: 'BSC' },
+  { id: 8453, name: 'Base' },
+  { id: 146, name: 'Sonic' },
+  { id: 9745, name: 'Plasma' },
+];
+
 export default function Home() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -11,12 +20,14 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarket, setSelectedMarket] = useState<MarketErrorSummary | null>(null);
   const [minDataPoints, setMinDataPoints] = useState(3);
+  const [selectedChain, setSelectedChain] = useState(1);
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const response = await fetch('/api/pendle/markets?chainId=1');
+        setError(null);
+        const response = await fetch(`/api/pendle/markets?chainId=${selectedChain}`);
         if (!response.ok) throw new Error('Failed to fetch data');
 
         const result = await response.json();
@@ -29,7 +40,7 @@ export default function Home() {
     }
 
     loadData();
-  }, []);
+  }, [selectedChain]);
 
   const filteredMarkets = data?.markets.filter(m => {
     if (m.overall.dataPoints < minDataPoints) return false;
@@ -82,8 +93,36 @@ export default function Home() {
           </p>
         </header>
 
+        {/* Chain Selector */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-semibold text-gray-400">Select Chain:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {CHAINS.map((chain) => (
+              <button
+                key={chain.id}
+                onClick={() => setSelectedChain(chain.id)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedChain === chain.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {chain.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {data && (
           <>
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-blue-400">
+                {CHAINS.find(c => c.id === selectedChain)?.name} Analysis
+              </h2>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
                 <div className="text-sm text-gray-400 mb-1">Total Expired Markets</div>
