@@ -3,6 +3,7 @@ import { getMarketById } from '@/lib/pendleApi';
 import { analyzeMarketAccuracy } from '@/lib/pendleAnalytics';
 import { getCached, setCache } from '@/lib/cache';
 
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(

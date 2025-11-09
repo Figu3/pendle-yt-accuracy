@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { analyzeDashboard } from '@/lib/pendleAnalytics';
 import { getCached, setCache } from '@/lib/cache';
 
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -29,8 +30,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...summary, cached: false });
   } catch (error) {
     console.error('Error in /api/pendle/markets:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : '';
+    console.error('Error details:', { errorMessage, errorStack });
     return NextResponse.json(
-      { error: 'Failed to fetch market data' },
+      {
+        error: 'Failed to fetch market data',
+        details: errorMessage,
+        hint: 'Check server console for full error'
+      },
       { status: 500 }
     );
   }
