@@ -3,19 +3,43 @@ import type { PendleMarketsResponse, MarketHistoryResponse, PendleMarket } from 
 const API_BASE = 'https://api-v2.pendle.finance/core';
 
 export async function fetchAllMarkets(chainId: number = 1): Promise<PendleMarket[]> {
-  const url = `${API_BASE}/v1/${chainId}/markets?limit=1000`;
-  
+  const allMarkets: PendleMarket[] = [];
+  let skip = 0;
+  const limit = 100; // API max limit is 100
+  let hasMore = true;
+
   try {
-    const response = await fetch(url, {
-      next: { revalidate: 3600 } // Cache for 1 hour
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch markets: ${response.statusText}`);
+    while (hasMore) {
+      const url = `${API_BASE}/v1/${chainId}/markets?limit=${limit}&skip=${skip}`;
+      console.log(`Fetching markets from: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error response:', errorText);
+        throw new Error(`Failed to fetch markets: ${response.status} ${response.statusText}`);
+      }
+
+      const data: PendleMarketsResponse = await response.json();
+      console.log(`Fetched ${data.results.length} markets (skip=${skip}, total=${data.total})`);
+
+      allMarkets.push(...data.results);
+      skip += limit;
+
+      // Check if we've fetched all markets
+      hasMore = skip < data.total;
     }
-    
-    const data: PendleMarketsResponse = await response.json();
-    return data.results;
+
+    console.log(`Total markets fetched: ${allMarkets.length}`);
+    return allMarkets;
   } catch (error) {
     console.error('Error fetching markets:', error);
     throw error;
@@ -37,16 +61,23 @@ export async function fetchMarketHistory(
   marketAddress: string
 ): Promise<MarketHistoryResponse> {
   const url = `${API_BASE}/v2/${chainId}/markets/${marketAddress}/history`;
-  
+
   try {
     const response = await fetch(url, {
-      next: { revalidate: 43200 } // Cache for 12 hours
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch market history: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`API Error for ${marketAddress}:`, errorText);
+      throw new Error(`Failed to fetch market history: ${response.status} ${response.statusText}`);
     }
-    
+
     const data: MarketHistoryResponse = await response.json();
     return data;
   } catch (error) {
