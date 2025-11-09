@@ -44,6 +44,13 @@ export interface MarketHistoryPoint {
   underlyingApy: number;
   impliedApy: number;
   ptDiscount: number;
+  tradingVolume?: number;
+  pendleApy?: number;
+  lpRewardApy?: number;
+  underlyingRewardApy?: number;
+  totalTvl?: number;
+  totalPt?: number;
+  totalSy?: number;
 }
 
 export interface MarketHistoryResponse {
@@ -64,6 +71,14 @@ export interface LeadTimeData {
   error: number | null; // signed error
   absError: number | null;
   relError: number | null; // relative error as percentage
+  liquidityUsd?: number | null;
+  tradingVolume?: number | null;
+  pendleApy?: number | null;
+  lpRewardApy?: number | null;
+  underlyingRewardApy?: number | null;
+  totalTvl?: number | null;
+  totalPt?: number | null;
+  totalSy?: number | null;
 }
 
 export interface MarketErrorSummary {

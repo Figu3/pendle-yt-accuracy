@@ -1,6 +1,7 @@
 import type {
   PendleMarket,
   MarketHistoryResponse,
+  MarketHistoryPoint,
   LeadTimeData,
   MarketErrorSummary,
   DashboardSummary
@@ -194,4 +195,100 @@ export async function analyzeDashboard(chainId: number = 1): Promise<DashboardSu
     overallMSE,
     markets: marketAnalyses
   };
+}
+
+/**
+ * Enhanced analysis that includes volume, liquidity, and incentive metrics
+ */
+export async function analyzeMarketAccuracyWithMetrics(
+  market: PendleMarket
+): Promise<MarketErrorSummary | null> {
+  try {
+    const maturityTime = new Date(market.expiry).getTime();
+    const now = Date.now();
+
+    // Only analyze expired markets
+    if (maturityTime >= now) return null;
+
+    // Fetch full market history
+    const history = await fetchMarketHistory(market.chainId, market.address);
+
+    if (!history.results || history.results.length === 0) {
+      return null;
+    }
+
+    const perLead: LeadTimeData[] = [];
+
+    // Analyze each lead time horizon
+    for (const leadDays of LEAD_DAYS) {
+      const t0 = maturityTime - (leadDays * 24 * 60 * 60 * 1000);
+
+      // Find closest historical point to t0
+      const match = findClosestPoint(history, t0);
+      if (!match) continue;
+
+      const point: MarketHistoryPoint = match.point;
+      const ptPrice = 1 - point.ptDiscount;
+
+      // Calculate realized APY from PT price at t0
+      const realizedApy = calculateRealizedApy(ptPrice, leadDays);
+
+      if (realizedApy === null) continue;
+
+      // Calculate errors
+      const error = point.impliedApy - realizedApy;
+      const absError = Math.abs(error);
+      const relError = (absError / realizedApy) * 100;
+
+      perLead.push({
+        leadDays,
+        timestamp: t0,
+        impliedApy: point.impliedApy,
+        realizedApy,
+        ptPrice,
+        error,
+        absError,
+        relError,
+        liquidityUsd: point.liquidity?.usd,
+        tradingVolume: point.tradingVolume,
+        pendleApy: point.pendleApy,
+        lpRewardApy: point.lpRewardApy,
+        underlyingRewardApy: point.underlyingRewardApy,
+        totalTvl: point.totalTvl,
+        totalPt: point.totalPt,
+        totalSy: point.totalSy
+      });
+    }
+
+    // Need at least 3 data points to be meaningful
+    if (perLead.length < 3) return null;
+
+    // Calculate summary statistics
+    const absErrors = perLead.map(p => p.absError!);
+    const errors = perLead.map(p => p.error!);
+    const relErrors = perLead.map(p => p.relError!);
+
+    const meanAbsError = absErrors.reduce((a, b) => a + b, 0) / absErrors.length;
+    const meanSignedError = errors.reduce((a, b) => a + b, 0) / errors.length;
+    const meanRelAbsError = relErrors.reduce((a, b) => a + b, 0) / relErrors.length;
+
+    return {
+      marketAddress: market.address,
+      marketName: market.symbol,
+      protocol: market.protocol,
+      underlyingSymbol: market.underlyingAsset?.symbol || '',
+      maturity: maturityTime,
+      chainId: market.chainId,
+      perLead,
+      overall: {
+        meanAbsError,
+        meanSignedError,
+        meanRelAbsError,
+        dataPoints: perLead.length
+      }
+    };
+  } catch (error) {
+    console.error('Error analyzing market with metrics:', error);
+    return null;
+  }
 }
