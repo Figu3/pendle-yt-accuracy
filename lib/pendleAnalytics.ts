@@ -168,8 +168,13 @@ export async function analyzeDashboard(chainId: number = 1): Promise<DashboardSu
     const results = await Promise.all(
       batch.map(market => analyzeMarketAccuracy(market))
     );
-    
+
     marketAnalyses.push(...results.filter((r): r is MarketErrorSummary => r !== null));
+
+    // Wait 2 seconds between batches to avoid rate limiting
+    if (i + batchSize < expiredMarkets.length) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
   
   // Calculate overall statistics

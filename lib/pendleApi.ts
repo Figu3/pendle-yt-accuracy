@@ -58,32 +58,47 @@ export async function getExpiredMarkets(chainId: number = 1): Promise<PendleMark
 
 export async function fetchMarketHistory(
   chainId: number,
-  marketAddress: string
+  marketAddress: string,
+  retries: number = 3
 ): Promise<MarketHistoryResponse> {
   const url = `${API_BASE}/v2/${chainId}/markets/${marketAddress}/history`;
 
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API Error for ${marketAddress}:`, errorText);
-      throw new Error(`Failed to fetch market history: ${response.status} ${response.statusText}`);
+      if (response.status === 429 && attempt < retries) {
+        // Rate limited, wait and retry with exponential backoff
+        const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        console.log(`Rate limited for ${marketAddress}, waiting ${waitTime}ms before retry ${attempt + 1}/${retries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error for ${marketAddress}:`, errorText);
+        throw new Error(`Failed to fetch market history: ${response.status} ${response.statusText}`);
+      }
+
+      const data: MarketHistoryResponse = await response.json();
+      return data;
+    } catch (error) {
+      if (attempt === retries) {
+        console.error(`Error fetching history for ${marketAddress}:`, error);
+        throw error;
+      }
     }
-
-    const data: MarketHistoryResponse = await response.json();
-    return data;
-  } catch (error) {
-    console.error(`Error fetching history for ${marketAddress}:`, error);
-    throw error;
   }
+
+  throw new Error(`Failed to fetch market history after ${retries} retries`);
 }
 
 export async function getMarketById(
